@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>PPN 계산기 (Cats)</title>
+  <meta name="description" content="고양이 전용 PPN 계산기 · 5DW / AA8.5% / Lipid20%" />
+  <style>
+    :root{
+      --blue:#1d4ed8; --red:#dc2626; --muted:#64748b; --bg:#f8fafc; --card:#fff; --border:#e5e7eb;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:var(--bg);color:#0f172a;padding:12px}
+    h2{margin:0 0 12px;font-size:1.35rem;color:var(--blue);text-align:center}
+    h3{margin:0 0 8px;font-size:1.05rem;color:var(--blue)}
+    .red-title{color:var(--red)}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,.04)}
+    .row{display:flex;flex-direction:row;gap:12px;flex-wrap:wrap}
+    .input-box{border:2px solid var(--blue);border-radius:10px;padding:10px;background:#f9fafb;box-sizing:border-box}
+    .input-box.label-small{flex:0.6;min-width:100px}
+    .input-box.label-large{flex:1.4;min-width:180px}
+    .input-box label{display:block;font-size:.92rem;margin-bottom:4px;color:var(--blue)}
+    .input-box input[type=number], .input-box select{width:100%;padding:10px;font-size:1rem;border:1px solid var(--border);border-radius:8px;background:#fff;box-sizing:border-box}
+    .input-box input[type=number]:focus, .input-box select:focus{outline:none;border-color:var(--blue);}
+    .tabs{display:flex;gap:8px;margin-bottom:8px}
+    .tab{flex:1;padding:6px 8px;text-align:center;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:.9rem}
+    .tab.active{background:var(--blue);color:#fff}
+    .hint{font-size:.8rem;color:var(--muted)}
+    table{width:100%;border-collapse:collapse;font-size:.92rem}
+    th,td{padding:6px;border-bottom:1px solid var(--border);text-align:left}
+    th{color:#0f172a}
+    tfoot td{font-weight:600}
+    .right{text-align:right}
+    .total{background:#eff6ff}
+    .flow{font-weight:700;color:var(--blue);text-align:center;margin-top:6px}
+    .note{font-size:.8rem;color:#6b7280;margin-top:4px}
+    .smallnote{font-size:.75rem;color:#6b7280;margin-left:4px}
+  </style>
+</head>
+<body>
+  <h2>PPN 계산기 (Cats)</h2>
+
+  <div class="card">
+    <h3>⚙️ 입력</h3>
+    <div class="row">
+      <div class="input-box label-small">
+        <label for="bw">체중 (kg)</label>
+        <input id="bw" type="number" step="0.1" placeholder="예: 4.5" value="4.5">
+      </div>
+      <div class="input-box label-large">
+        <label for="condition">상태 선택</label>
+        <select id="condition">
+          <option value="1.3">정상 활동 (계수 1.3)</option>
+          <option value="0.9">중성화/저활동 (계수 0.9)</option>
+          <option value="2.2">성장/수유 (계수 2.2)</option>
+          <option value="0.8">체중 감량 (계수 0.8, 권장: 52 kcal·kg⁻⁰·⁷¹¹/일)</option>
+          <option value="1">기타/질환 환자 (계수 1.0)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🧮 에너지 (2021 AAHA 기준)</h3>
+    <table>
+      <thead><tr><th>지표</th><th class="right">kcal/day</th></tr></thead>
+      <tbody>
+        <tr><td>RER <span class="smallnote">(70 × BW^0.75)</span></td><td class="right" id="valRER">-</td></tr>
+        <tr><td>MER <span class="smallnote">(RER × 상태 계수)</span></td><td class="right" id="valIER">-</td></tr>
+        <tr><td>PER <span class="smallnote">(0.5 × RER, 초기 투여)</span></td><td class="right" id="valPER">-</td></tr>
+      </tbody>
+    </table>
+    <p class="note">※ PER (Parenteral Energy Requirement)은 가이드라인에 직접 언급되지 않으며, 임상에서 관행적으로 RER의 약 50%를 초기 PPN 투여 기준으로 활용하는 값입니다.</p>
+  </div>
+
+  <div class="card">
+    <h3>🍶 일일 조성 (계산기준 지표 선택)</h3>
+    <div class="tabs">
+      <div class="tab active" data-target="PER">PER 기준 (1/2 of RER)</div>
+      <div class="tab" data-target="MER">MER 기준</div>
+      <div class="tab" data-target="RER">RER 기준</div>
+    </div>
+ 
+    <table>
+      <thead><tr><th>성분</th><th class="right">목표 kcal</th><th class="right">ml/day</th></tr></thead>
+      <tbody>
+        <tr><td>Dextrose 5% (0.17 kcal/ml)</td><td class="right" id="kDex">-</td><td class="right" id="mDex">-</td></tr>
+        <tr><td>Amino Acid 8.5% (0.34 kcal/ml)</td><td class="right" id="kAA">-</td><td class="right" id="mAA">-</td></tr>
+        <tr><td>Lipid 20% (2 kcal/ml)</td><td class="right" id="kLip">-</td><td class="right" id="mLip">-</td></tr>
+        <tr><td>Multivitamins</td><td class="right">—</td><td class="right">0.5</td></tr>
+        <tr><td>Trace elements</td><td class="right">—</td><td class="right">0.5</td></tr>
+      </tbody>
+      <tfoot>
+        <tr class="total"><td>합계(제제)</td><td class="right">—</td><td class="right" id="sumBase">-</td></tr>
+        <tr><td>+ Saline (선택, ml/day)</td><td class="right">—</td><td class="right"><input id="saline" type="number" step="1" placeholder="예: 0" value="0" style="max-width:100px"></td></tr>
+        <tr class="total"><td>총 부피</td><td class="right">—</td><td class="right" id="sumTotal">-</td></tr>
+      </tfoot>
+    </table>
+    <div class="flow" id="flow">— ml/hr</div>
+  </div>
+
+  <div class="card">
+    <h3 class="red-title">🧾 임상 편의 조제법</h3>
+    <p class="hint">1) 베이스수액(100 mL)에 Amino Acid + Lipid 를 추가하여 조제합니다.<br>2) 아래는 한 팩당 완성부피 및 하루 필요 팩 수 계산입니다.<br>3) 이후 최종 팩 부피를 기준으로 원하는 KCl 보정 목표를 정하고, 계산된 KCl-40 용량으로 조제하세요.</p>
+    <table>
+      <thead><tr><th>성분</th><th class="right">팩 당 첨가량 (mL)</th></tr></thead>
+      <tbody>
+        <tr><td>Dextrose 5% (베이스)</td><td class="right">100</td></tr>
+        <tr><td>Amino Acid 8.5%</td><td class="right" id="packAA">-</td></tr>
+        <tr><td>Lipid 20%</td><td class="right" id="packLip">-</td></tr>
+      </tbody>
+      <tfoot>
+        <tr class="total"><td>1팩당 최종 부피</td><td class="right" id="packVol">-</td></tr>
+        <tr class="total"><td>에너지량에 따른 1일 필요 개수 (단위:팩)</td><td class="right" id="packCount">-</td></tr>
+      </tfoot>
+    </table>
+
+    <h3 class="red-title" style="margin-top:16px">⚡ KCl 보정</h3>
+    <p class="hint">목표 보정치 (mEq/500mL 기준) 를 선택하면, 조제된 한 팩의 최종 부피에 맞춰 필요한 KCl 용량이 계산됩니다. (K-40 기준)</p>
+    <table>
+      <tr>
+        <td>KCl 보정 목표</td>
+        <td class="right">
+          <select id="kclTarget">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="40">40</option>
+            <option value="80" selected>80</option>
+            <option value="100">100</option>
+          </select> mEq/500mL
+        </td>
+      </tr>
+      <tr class="total"><td>조제하여 완성된 1팩당 KCl (mL)</td><td class="right" id="packKCl">-</td></tr>
+    </table>
+  </div>
+
+<script>
+  const KCAL_PER_ML = { dex: 0.17, aa: 0.34, lip: 2.00 };
+  const V_MVI = 0.5, V_TRACE = 0.5;
+  const PACK_VOL = 100; // base 5DW mL per pack
+  const KCL_CONC = 2; // mEq/mL (KCl 40mEq/20mL)
+
+  const $ = (id)=>document.getElementById(id);
+  const bw = $('bw');
+  const condition = $('condition');
+  const saline = $('saline');
+
+  const valRER = $('valRER');
+  const valIER = $('valIER');
+  const valPER = $('valPER');
+  const kDex = $('kDex'), kAA = $('kAA'), kLip = $('kLip');
+  const mDex = $('mDex'), mAA = $('mAA'), mLip = $('mLip');
+  const sumBase = $('sumBase'), sumTotal = $('sumTotal');
+  const flow = $('flow');
+
+  const packAA = $('packAA'), packLip = $('packLip');
+  const packKCl=$('packKCl');
+  const packCount=$('packCount');
+  const packVol=$('packVol');
+  const kclTarget=$('kclTarget');
+
+  function fmt(x, d=0){ if(isNaN(x)) return '-'; return Number(x).toFixed(d); }
+
+  let currentTarget = 'PER';
+
+  function recalc(){
+    const BW = parseFloat(bw.value);
+    const factor = parseFloat(condition.value);
+    const addSaline = parseFloat(saline.value||'0')||0;
+    if(isNaN(BW) || BW<=0) return;
+
+    const RER = 70 * Math.pow(BW,0.75);
+    const MER = RER * factor;
+    const PER = 0.5 * RER;
+
+    valRER.textContent = fmt(RER,0);
+    valIER.textContent = fmt(MER,0);
+    valPER.textContent = fmt(PER,0);
+
+    let targetKcal = PER;
+    if(currentTarget==='MER') targetKcal = MER;
+    else if(currentTarget==='RER') targetKcal = RER;
+
+    const kcalDex = 0.25*targetKcal;
+    const kcalAA  = 0.25*targetKcal;
+    const kcalLip = 0.50*targetKcal;
+
+    kDex.textContent = fmt(kcalDex,0);
+    kAA.textContent  = fmt(kcalAA,0);
+    kLip.textContent = fmt(kcalLip,0);
+
+    const vDex = kcalDex / KCAL_PER_ML.dex;
+    const vAA  = kcalAA  / KCAL_PER_ML.aa;
+    const vLip = kcalLip / KCAL_PER_ML.lip;
+
+    mDex.textContent = fmt(vDex,0);
+    mAA.textContent  = fmt(vAA,0);
+    mLip.textContent = fmt(vLip,0);
+
+    const baseSum = vDex + vAA + vLip + V_MVI + V_TRACE;
+    sumBase.textContent = fmt(baseSum,0);
+
+    const total = baseSum + addSaline;
+    sumTotal.textContent = fmt(total,0);
+
+    flow.textContent = `${fmt(total/24,1)} mL/hr`;
+
+    // ==== 임상 조제: 베이스+AA+Lipid 기준 ====
+    const N = Math.max(1, total / PACK_VOL);
+    const aaPerPack = vAA / N;
+    const lipPerPack = vLip / N;
+    const Vpack = PACK_VOL + aaPerPack + lipPerPack;
+
+    packAA.textContent  = fmt(aaPerPack,1);
+    packLip.textContent = fmt(lipPerPack,1);
+    packVol.textContent = fmt(Vpack,1);
+    packCount.textContent = fmt(N,1);
+
+    // ==== KCl 보정: Vpack 기준 ====
+    const T = parseFloat(kclTarget.value); // 목표 mEq/500mL
+    const C = KCL_CONC;
+    const kclPerPack = (T/500) * Vpack / C;
+    packKCl.textContent = fmt(kclPerPack,1);
+  }
+
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      tabs.forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      currentTarget = tab.dataset.target;
+      recalc();
+    });
+  });
+
+  [bw, condition, saline, kclTarget].forEach(el=> el.addEventListener('input', recalc));
+  recalc();
+</script>
+</body>
+</html>
