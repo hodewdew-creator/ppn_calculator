@@ -34,6 +34,9 @@
     .flow{font-weight:700;color:var(--blue);text-align:center;margin-top:6px}
     .note{font-size:.8rem;color:#6b7280;margin-top:4px}
     .smallnote{font-size:.75rem;color:#6b7280;margin-left:4px}
+    .kcl-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px dashed var(--border);border-radius:8px;padding:10px;background:#fff}
+    .kcl-line strong{color:#111827}
+    .kcl-select{padding:8px 10px;font-size:1rem;min-width:120px;border:1px solid var(--border);border-radius:8px;background:#fff}
   </style>
 </head>
 <body>
@@ -49,11 +52,11 @@
       <div class="input-box label-large">
         <label for="condition">상태 선택</label>
         <select id="condition">
+          <option value="1">기타/질환 환자 (계수 1.0)</option>
           <option value="1.3">정상 활동 (계수 1.3)</option>
           <option value="0.9">중성화/저활동 (계수 0.9)</option>
           <option value="2.2">성장/수유 (계수 2.2)</option>
           <option value="0.8">체중 감량 (계수 0.8, 권장: 52 kcal·kg⁻⁰·⁷¹¹/일)</option>
-          <option value="1">기타/질환 환자 (계수 1.0)</option>
         </select>
       </div>
     </div>
@@ -73,11 +76,11 @@
   </div>
 
   <div class="card">
-    <h3>🍶 일일 조성 (계산기준 지표 선택)</h3>
+    <h3>🍶 일일 조성 (기준지표 선택해주세요)</h3>
     <div class="tabs">
-      <div class="tab active" data-target="PER">PER 기준 (1/2 of RER)</div>
-      <div class="tab" data-target="MER">MER 기준</div>
-      <div class="tab" data-target="RER">RER 기준</div>
+      <div class="tab active" data-target="PER">PER</div>
+      <div class="tab" data-target="MER">MER</div>
+      <div class="tab" data-target="RER">RER</div>
     </div>
  
     <table>
@@ -90,9 +93,9 @@
         <tr><td>Trace elements</td><td class="right">—</td><td class="right">0.5</td></tr>
       </tbody>
       <tfoot>
-        <tr class="total"><td>합계(제제)</td><td class="right">—</td><td class="right" id="sumBase">-</td></tr>
+        <tr class="total"><td>합계(제제)</td><td class="right" id="sumKcal">-</td><td class="right" id="sumBase">-</td></tr>
         <tr><td>+ Saline (선택, ml/day)</td><td class="right">—</td><td class="right"><input id="saline" type="number" step="1" placeholder="예: 0" value="0" style="max-width:100px"></td></tr>
-        <tr class="total"><td>총 부피</td><td class="right">—</td><td class="right" id="sumTotal">-</td></tr>
+        <tr class="total"><td>총 목표 칼로리 및 부피</td><td class="right" id="sumKcalTotal">-</td><td class="right" id="sumTotal">-</td></tr>
       </tfoot>
     </table>
     <div class="flow" id="flow">— ml/hr</div>
@@ -109,35 +112,34 @@
         <tr><td>Lipid 20%</td><td class="right" id="packLip">-</td></tr>
       </tbody>
       <tfoot>
-        <tr class="total"><td>1팩당 최종 부피</td><td class="right" id="packVol">-</td></tr>
+        <tr class="total"><td>1팩당 최종 부피 및 칼로리</td><td class="right" id="packVol">-</td></tr>
         <tr class="total"><td>에너지량에 따른 1일 필요 개수 (단위:팩)</td><td class="right" id="packCount">-</td></tr>
       </tfoot>
     </table>
 
     <h3 class="red-title" style="margin-top:16px">⚡ KCl 보정</h3>
-    <p class="hint">목표 보정치 (mEq/500mL 기준) 를 선택하면, 조제된 한 팩의 최종 부피에 맞춰 필요한 KCl 용량이 계산됩니다. (K-40 기준)</p>
-    <table>
-      <tr>
-        <td>KCl 보정 목표</td>
-        <td class="right">
-          <select id="kclTarget">
-            <option value="10">10</option>
-            <option value="20">20</option>
-            <option value="40">40</option>
-            <option value="80" selected>80</option>
-            <option value="100">100</option>
-          </select> mEq/500mL
-        </td>
-      </tr>
-      <tr class="total"><td>조제하여 완성된 1팩당 KCl (mL)</td><td class="right" id="packKCl">-</td></tr>
-    </table>
+    <p class="hint">목표 보정치 (mEq/L 기준) 를 선택하면, 조제된 한 팩의 최종 부피에 맞춰 필요한 KCl 용량이 계산됩니다. (K-40 기준)</p>
+
+    <div class="kcl-line">
+      <strong>KCl 보정 목표</strong>
+      <select id="kclTarget" class="kcl-select">
+        <option value="10">10</option>
+        <option value="20">20</option>
+        <option value="40">40</option>
+        <option value="80" selected>80</option>
+        <option value="100">100</option>
+      </select>
+      <span>mEq — 조제하여 완성된 1팩당</span>
+      <strong id="packKCl">-</strong>
+      <span>mL</span>
+    </div>
   </div>
 
 <script>
   const KCAL_PER_ML = { dex: 0.17, aa: 0.34, lip: 2.00 };
   const V_MVI = 0.5, V_TRACE = 0.5;
-  const PACK_VOL = 100; // base 5DW mL per pack
-  const KCL_CONC = 2; // mEq/mL (KCl 40mEq/20mL)
+  const PACK_VOL = 100;
+  const KCL_CONC = 2; 
 
   const $ = (id)=>document.getElementById(id);
   const bw = $('bw');
@@ -150,6 +152,7 @@
   const kDex = $('kDex'), kAA = $('kAA'), kLip = $('kLip');
   const mDex = $('mDex'), mAA = $('mAA'), mLip = $('mLip');
   const sumBase = $('sumBase'), sumTotal = $('sumTotal');
+  const sumKcal = $('sumKcal'), sumKcalTotal = $('sumKcalTotal');
   const flow = $('flow');
 
   const packAA = $('packAA'), packLip = $('packLip');
@@ -198,27 +201,31 @@
 
     const baseSum = vDex + vAA + vLip + V_MVI + V_TRACE;
     sumBase.textContent = fmt(baseSum,0);
+    sumKcal.textContent = fmt(targetKcal,0);
 
     const total = baseSum + addSaline;
     sumTotal.textContent = fmt(total,0);
+    sumKcalTotal.textContent = fmt(targetKcal,0);
 
     flow.textContent = `${fmt(total/24,1)} mL/hr`;
 
-    // ==== 임상 조제: 베이스+AA+Lipid 기준 ====
-    const N = Math.max(1, total / PACK_VOL);
-    const aaPerPack = vAA / N;
-    const lipPerPack = vLip / N;
-    const Vpack = PACK_VOL + aaPerPack + lipPerPack;
+    // ==== 임상 조제: 비율 고정 (Dex/AA/Lip = 25/25/50) ====
+    const Kpack = (PACK_VOL * KCAL_PER_ML.dex) / 0.25; // 68 kcal/pack
+    const aaPerPack  = (0.25 * Kpack) / KCAL_PER_ML.aa; // 50 mL/pack
+    const lipPerPack = (0.50 * Kpack) / KCAL_PER_ML.lip; // 17 mL/pack
+    const Vpack = PACK_VOL + aaPerPack + lipPerPack;     // 167 mL/pack
+
+    const N = Math.max(1, targetKcal / Kpack);
 
     packAA.textContent  = fmt(aaPerPack,1);
     packLip.textContent = fmt(lipPerPack,1);
-    packVol.textContent = fmt(Vpack,1);
+    packVol.textContent = `${fmt(Vpack,1)} mL / ${fmt(Kpack,0)} kcal`;
     packCount.textContent = fmt(N,1);
 
-    // ==== KCl 보정: Vpack 기준 ====
-    const T = parseFloat(kclTarget.value); // 목표 mEq/500mL
+    const T = parseFloat(kclTarget.value);
     const C = KCL_CONC;
-    const kclPerPack = (T/500) * Vpack / C;
+    // 1000mL 기준으로 계산 변경
+    const kclPerPack = (T/1000) * Vpack / C;
     packKCl.textContent = fmt(kclPerPack,1);
   }
 
@@ -232,8 +239,9 @@
     });
   });
 
-  [bw, condition, saline, kclTarget].forEach(el=> el.addEventListener('input', recalc));
+  [bw, condition, saline, kclTarget].forEach(el=>{ ['input','change','keyup'].forEach(evt=> el.addEventListener(evt, recalc)); });
   recalc();
 </script>
+
 </body>
 </html>
